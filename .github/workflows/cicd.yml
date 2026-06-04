@@ -1,0 +1,136 @@
+name: vehicle-monitoring-cicd
+
+on:
+  push:
+    branches:
+      - dev
+      - prod
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    env:
+      MODEL_URL: ${{ vars.MODEL_URL }}
+      MODEL_PATH: models/yolo26n.onnx
+      CONF_THRESHOLD: ${{ vars.CONF_THRESHOLD }}
+      IOU_THRESHOLD: ${{ vars.IOU_THRESHOLD }}
+      VEHICLE_CLASS_IDS: ${{ vars.VEHICLE_CLASS_IDS }}
+      TEST_DATA_URI: ${{ vars.TEST_DATA_URI }}
+      EXPECTED_METRICS_URI: ${{ vars.EXPECTED_METRICS_URI }}
+      TEST_IMAGE_PATH: tests/data/traffic_test.jpg
+      EXPECTED_METRICS_PATH: tests/data/expected_metrics.json
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Autenticar en Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Instalar Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Descargar modelo ONNX
+        run: python scripts/download_model.py
+
+      - name: Descargar datos de prueba desde bucket
+        run: |
+          mkdir -p tests/data
+          gcloud storage cp "$TEST_DATA_URI" "$TEST_IMAGE_PATH"
+          gcloud storage cp "$EXPECTED_METRICS_URI" "$EXPECTED_METRICS_PATH"
+
+      - name: Ejecutar pruebas unitarias
+        run: pytest -q
+
+  build_promote:
+    needs: test
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      ARTIFACT_REPOSITORY: ${{ vars.ARTIFACT_REPOSITORY }}
+      MODEL_URL: ${{ vars.MODEL_URL }}
+      CONF_THRESHOLD: ${{ vars.CONF_THRESHOLD }}
+      IOU_THRESHOLD: ${{ vars.IOU_THRESHOLD }}
+      VEHICLE_CLASS_IDS: ${{ vars.VEHICLE_CLASS_IDS }}
+      PREDICTIONS_BUCKET: ${{ vars.PREDICTIONS_BUCKET }}
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Definir ambiente según rama
+        id: envs
+        shell: bash
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+          if [ "$BRANCH" = "prod" ]; then
+            echo "environment=prod" >> "$GITHUB_OUTPUT"
+            echo "service_name=vehicle-monitor-prod" >> "$GITHUB_OUTPUT"
+            echo "predictions_blob=predicciones_prod.txt" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=dev" >> "$GITHUB_OUTPUT"
+            echo "service_name=vehicle-monitor-dev" >> "$GITHUB_OUTPUT"
+            echo "predictions_blob=predicciones_dev.txt" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Autenticar en Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Instalar Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configurar Docker para Artifact Registry
+        run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+
+      - name: Construir imagen Docker
+        run: |
+          IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REPOSITORY/${{ steps.envs.outputs.service_name }}:${GITHUB_SHA}"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+          docker build \
+            --build-arg MODEL_URL="$MODEL_URL" \
+            -t "$IMAGE_URI" .
+
+      - name: Publicar imagen Docker
+        run: docker push "$IMAGE_URI"
+
+      - name: Desplegar en Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ steps.envs.outputs.service_name }}
+          image: ${{ env.IMAGE_URI }}
+          region: ${{ env.REGION }}
+          env_vars: |
+            ENVIRONMENT=${{ steps.envs.outputs.environment }}
+            MODEL_PATH=models/yolo26n.onnx
+            CONF_THRESHOLD=${{ env.CONF_THRESHOLD }}
+            IOU_THRESHOLD=${{ env.IOU_THRESHOLD }}
+            VEHICLE_CLASS_IDS=${{ env.VEHICLE_CLASS_IDS }}
+            PREDICTIONS_BUCKET=${{ env.PREDICTIONS_BUCKET }}
+            PREDICTIONS_BLOB=${{ steps.envs.outputs.predictions_blob }}
+
+      - name: Mostrar URL del endpoint
+        run: echo "Endpoint actualizado para ${{ steps.envs.outputs.environment }}"

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Resultado - Monitoreo vehicular</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+
+<body>
+    <main class="container">
+        <div class="grid">
+            <section class="card">
+                <h1>Resultado del monitoreo</h1>
+
+                <p>
+                    El sistema analizó la imagen, contó los vehículos y generó una imagen con recuadros
+                    sobre las detecciones.
+                </p>
+
+                <div class="count">{{ count }}</div>
+                <p>Vehículos detectados</p>
+
+                {% if count > 0 and detections|length == 0 %}
+                <div class="warning">
+                    El modelo contó vehículos, pero no entregó coordenadas para dibujar los recuadros.
+                    Revisa que app/model.py retorne box_xyxy en cada detección.
+                </div>
+                {% endif %}
+
+                <div class="meta">
+                    <div>Ambiente <span>{{ response.environment }}</span></div>
+                    <div>Confianza mínima <span>{{ response.confidence_threshold }}</span></div>
+                    <div>Clases contadas <span>{{ response.vehicle_class_labels }}</span></div>
+                    <div>Conteo por clase <span>{{ class_counts }}</span></div>
+                    <div>ID de petición <span>{{ response.request_id[:18] }}...</span></div>
+                </div>
+
+                <div class="actions">
+                    <a class="button" href="{{ image_url }}" download>Descargar imagen marcada</a>
+                    <a class="button" href="{{ json_url }}" download>Descargar resultado JSON</a>
+                    <a class="button" href="{{ txt_url }}" download>Descargar resultado TXT</a>
+                    <a class="button secondary" href="/download-history">Descargar historial TXT</a>
+                    <a class="button secondary" href="/">Nueva predicción</a>
+                </div>
+
+                <img class="preview" src="{{ image_url }}" alt="Imagen con vehículos señalados">
+            </section>
+
+            <section class="card">
+                <h2>Respuesta técnica</h2>
+
+                <p>
+                    Este JSON también puede ser consumido por otro sistema usando el endpoint técnico
+                    <strong>/predict</strong>.
+                </p>
+
+                <pre>{{ response | tojson(indent=2) }}</pre>
+            </section>
+        </div>
+    </main>
+</body>
+
+</html>
