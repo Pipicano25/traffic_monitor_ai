@@ -72,22 +72,32 @@ def append_prediction_line(
     if not bucket_name or not blob_name or storage is None:
         return
 
+    # Inicializar variables fuera para evitar el error "local variable 'blob' referenced before assignment"
+    client = None
+    bucket = None
+    blob = None
+    current_content = ""
+
     try:
         client = storage.Client()
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(blob_name)
 
         current_content = blob.download_as_text() if blob.exists() else ""
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ Alerta en descarga de GCP (Normal si no hay credenciales): {str(e)}")
         current_content = ""
 
-    try:
-        blob.upload_from_string(
-            current_content + line,
-            content_type="text/plain; charset=utf-8",
-        )
-    except Exception as e:
-        print(f"❌ Error al subir log al Bucket de Google Cloud: {str(e)}")
+    # Sólo intentamos subir si el cliente de almacenamiento se inicializó con éxito
+    if client and bucket and blob:
+        try:
+            blob.upload_from_string(
+                current_content + line,
+                content_type="text/plain; charset=utf-8",
+            )
+            print("✅ ¡Log subido exitosamente a Google Cloud Storage!")
+        except Exception as e:
+            print(f"❌ Error al subir log al Bucket de Google Cloud: {str(e)}")
 
 
 def read_predictions_text(bucket_name: str, blob_name: str) -> str:
