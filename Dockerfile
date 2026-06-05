@@ -1,25 +1,23 @@
-FROM python:3.12-slim
+# 1. Usar una imagen base oficial de Python ligera
+FROM python:3.10-slim
 
+# 2. Configurar el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    MODEL_PATH=models/yolo26n.onnx
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 libgl1 curl \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt requirements.txt
+# 3. Copiar las librerías necesarias e instalarlas
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app app
-COPY scripts scripts
+# 4. Copiar el código fuente de tu API (FastAPI)
+COPY ./app /app/app
 
-ARG MODEL_URL
-ENV MODEL_URL=${MODEL_URL}
-RUN PYTHONPATH=/app python scripts/download_model.py
+# 5. CUMPLIMIENTO DEL REQUERIMIENTO:
+# Copiamos el modelo .onnx que el pipeline de GitHub descargó 
+# dinámicamente desde el bucket hacia adentro del contenedor.
+COPY yolo26n.onnx /app/yolo26n.onnx
 
-EXPOSE 8080
+# 6. Exponer el puerto que usa FastAPI (Cloud Run usa el 8080 o el 8000)
+EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# 7. Comando para ejecutar la aplicación cuando el contenedor se encienda
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
