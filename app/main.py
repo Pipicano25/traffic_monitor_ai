@@ -14,7 +14,8 @@ from fastapi.templating import Jinja2Templates
 from app.config import get_settings
 from app.model import VehicleCounter
 from app.model_manager import download_model, ensure_model_exists, get_model_status
-from app.storage import append_prediction_line, read_predictions_text
+# Importamos la nueva función asíncrona de guardado automático y la variable de entorno
+from app.storage import registrar_prediccion_automatica, ENV_STAGE, read_predictions_text
 from app.ui import render_model_admin
 from app.visualization import draw_detections_on_image
 
@@ -100,8 +101,7 @@ def build_prediction_response(result: dict) -> dict:
 
 
 def register_prediction(response: dict) -> None:
-    settings = get_settings()
-
+    """Extrae las métricas esenciales y las registra de forma automática según la rama."""
     payload = {
         "request_id": response["request_id"],
         "timestamp_utc": response["timestamp_utc"],
@@ -111,11 +111,8 @@ def register_prediction(response: dict) -> None:
         "confidence_threshold": response["confidence_threshold"],
     }
 
-    append_prediction_line(
-        bucket_name=settings.predictions_bucket,
-        blob_name=settings.predictions_blob,
-        payload=payload,
-    )
+    # REQUERIMIENTO COMPLETADO: Guarda de manera inteligente en logs/predicciones_dev.txt o _prod.txt 
+    registrar_prediccion_automatica(payload)
 
 
 def save_result_files(response: dict, annotated_image_bytes: bytes) -> dict:
@@ -155,7 +152,7 @@ def home(request: Request) -> HTMLResponse:
         "home.html",
         {
             "request": request,
-            "environment": settings.environment,
+            "environment": f"{settings.environment} ({ENV_STAGE.upper()})",
             "vehicle_class_ids": settings.vehicle_class_ids,
             "conf_threshold": settings.conf_threshold,
             "model_ready": bool(status.get("ready")),
@@ -185,6 +182,7 @@ async def predict_from_ui(
         result = get_counter().predict(image_bytes)
         response = build_prediction_response(result)
 
+        # Aquí se llama al registro dinámico en el bucket 
         register_prediction(response)
 
         annotated_image_bytes = draw_detections_on_image(
@@ -233,6 +231,7 @@ async def predict(file: UploadFile = File(...)) -> dict:
         result = get_counter().predict(image_bytes)
         response = build_prediction_response(result)
 
+        # Aquí se llama al registro dinámico en el bucket 
         register_prediction(response)
 
         return response
@@ -243,17 +242,19 @@ async def predict(file: UploadFile = File(...)) -> dict:
 
 @app.get("/download-history")
 def download_history() -> Response:
-    settings = get_settings()
+    """Descarga de forma dinámica el archivo txt de logs según el contenedor que responda."""
+    bucket_name = os.getenv("GCP_BUCKET_NAME", "traffic-mlops-storage")
+    blob_name = f"logs/predicciones_{ENV_STAGE}.txt"
 
     content = read_predictions_text(
-        bucket_name=settings.predictions_bucket,
-        blob_name=settings.predictions_blob,
+        bucket_name=bucket_name,
+        blob_name=blob_name,
     )
 
     if not content:
-        content = "Aún no existen predicciones registradas para este ambiente.\n"
+        content = f"Aún no existen predicciones registradas para el ambiente: {ENV_STAGE.upper()}.\n"
 
-    filename = settings.predictions_blob or f"predicciones_{settings.environment}.txt"
+    filename = f"predicciones_{ENV_STAGE}.txt"
 
     return Response(
         content=content,
@@ -316,6 +317,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "environment": settings.environment,
+        "stage_mlops": ENV_STAGE.upper(),
         "model_path": settings.model_path,
         "interface": "enabled",
         "annotation": "enabled",
