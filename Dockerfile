@@ -17,7 +17,7 @@ COPY ./app /app/app
 COPY yolo26n.onnx /app/yolo26n.onnx
 
 # 6. Exponer el puerto que usa FastAPI (Cloud Run usa el 8080 o el 8000)
-EXPOSE 8000
+EXPOSE 8080
 
 # 7. Comando para ejecutar la aplicación cuando el contenedor se encienda
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
