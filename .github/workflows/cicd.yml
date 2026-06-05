@@ -1,8 +1,9 @@
 name: Pipeline CI/CD Traffic Monitor AI
-###
+
 on:
   push:
-    branches: [ dev, main ] # Se activa al hacer push a estas ramas
+    # REQUERIMIENTO 1: Se ejecuta al hacer push a las ramas dev y prod
+    branches: [ dev, prod ] 
 
 permissions:
   id-token: write # OBLIGATORIO para usar Workload Identity Federation sin llaves JSON
@@ -61,13 +62,13 @@ jobs:
         MAX_ABS_ERROR: "5"
       run: |
         pytest -v
-  #############
+
   # ==========================================
-  # ETAPA 2: EMPAQUETADO Y DESPLIEGUE (BUILD / PROMOTE) - ¡ACTUALIZADA AQUÍ!
+  # ETAPA 2: EMPAQUETADO Y DESPLIEGUE (BUILD / PROMOTE)
   # ==========================================
   build-and-deploy:
     name: Construcción y Despliegue en Cloud Run
-    needs: test # ESTA ETAPA SÓLO SE EJECUTA SI LOS TESTS PASAN EN VERDE
+    needs: test # SÓLO SE EJECUTA SI LOS TESTS PASAN EN VERDE
     runs-on: ubuntu-latest
     steps:
     - name: Checkout del Repositorio
@@ -82,34 +83,32 @@ jobs:
     - name: Configurar gcloud CLI
       uses: google-github-actions/setup-gcloud@v2
 
-    # Configura Docker para que pueda subir imágenes a Google Artifact Registry
     - name: Configurar autenticación de Docker en GCP
       run: |
         gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-    # ------------------------------------------------------------------------
-    # NUEVO PASO NUEVO: Descarga el modelo específicamente para construir el contenedor
-    # ------------------------------------------------------------------------
     - name: Obtener el modelo del Bucket para la construcción de la imagen
       run: |
         gcloud storage cp gs://${{ secrets.GCP_BUCKET_NAME }}/models/yolo26n.onnx ./yolo26n.onnx
 
-    # Construye la imagen Docker (ahora el Dockerfile sí encontrará el archivo yolo26n.onnx al lado)
     - name: Construir Imagen Docker
       run: |
         docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/repository-mlops/${{ env.IMAGE_NAME }}:${{ github.sha }} .
 
-    # Sube el contenedor listo al registro de Google Cloud
     - name: Subir Imagen a Artifact Registry
       run: |
         docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/repository-mlops/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-    # Despliega en Cloud Run inyectando la ruta interna del modelo horneado
-    - name: Desplegar en Google Cloud Run
+    # REQUERIMIENTO 2: Despliega y actualiza de forma automática el endpoint final
+    # Agregamos tolerancia de recursos para IA y la variable ENV_STAGE para que tu código sepa en qué rama está (dev o prod)
+    - name: Actualizar Endpoint en Google Cloud Run
       run: |
         gcloud run deploy traffic-monitor-service \
           --image ${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/repository-mlops/${{ env.IMAGE_NAME }}:${{ github.sha }} \
           --platform managed \
           --region ${{ env.REGION }} \
           --allow-unauthenticated \
-          --set-env-vars MODEL_PATH="/app/yolo26n.onnx"
+          --memory 2Gi \
+          --cpu 2 \
+          --timeout 300 \
+          --set-env-vars MODEL_PATH="/app/yolo26n.onnx",ENV_STAGE="${{ github.ref_name }}"
