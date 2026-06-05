@@ -2,7 +2,8 @@ name: Pipeline CI/CD Traffic Monitor AI
 
 on:
   push:
-    branches: [ dev, main ] # Se activa al hacer push a estas ramas
+    # REQUERIMIENTO 1: Se ejecuta al hacer push a las ramas dev y prod
+    branches: [ dev, prod ] 
 
 permissions:
   id-token: write # OBLIGATORIO para usar Workload Identity Federation sin llaves JSON
@@ -15,7 +16,7 @@ env:
 
 jobs:
   # ==========================================
-  # ETAPA 1: PRUEBAS UNITARIAS (TEST)
+  # ETAPA 1: PRUEBAS UNITARIAS (TEST) - FUNCIONANDO CORRECTAMENTE
   # ==========================================
   test:
     name: Etapa de Pruebas Unitarias MLOps
@@ -34,7 +35,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    # 1. Autenticación Keyless aprobada por la política corporativa
     - name: Autenticar de forma segura en Google Cloud
       uses: google-github-actions/auth@v2
       with:
@@ -44,19 +44,16 @@ jobs:
     - name: Configurar gcloud CLI
       uses: google-github-actions/setup-gcloud@v2
 
-    # 2. CUMPLE REQUERIMIENTO: Descarga dinámica de datos de prueba mediante la terminal
     - name: Obtener Datos de Prueba desde el Bucket de GCS
       run: |
         mkdir -p tests/data
         gcloud storage cp gs://${{ secrets.GCP_BUCKET_NAME }}/test-data/img1.jpeg ./tests/data/img1.jpeg
         gcloud storage cp gs://${{ secrets.GCP_BUCKET_NAME }}/test-data/img2.jpeg ./tests/data/img2.jpeg
 
-    # 3. CUMPLE REQUERIMIENTO: Descarga dinámica del modelo ONNX mediante la terminal
     - name: Obtener Modelo ONNX desde el Bucket de GCS
       run: |
         gcloud storage cp gs://${{ secrets.GCP_BUCKET_NAME }}/models/yolo26n.onnx ./yolo26n.onnx
 
-    # 4. EJECUCIÓN DE PYTEST: Inyecta las variables de entorno para test_model.py
     - name: Ejecutar Suite de Tests
       env:
         TEST_IMAGE_PATH: "tests/data/img1.jpeg"
@@ -71,7 +68,7 @@ jobs:
   # ==========================================
   build-and-deploy:
     name: Construcción y Despliegue en Cloud Run
-    needs: test # ESTA ETAPA SÓLO SE EJECUTA SI LOS TESTS PASAN EN VERDE
+    needs: test # SÓLO SE EJECUTA SI LOS TESTS PASAN EN VERDE
     runs-on: ubuntu-latest
     steps:
     - name: Checkout del Repositorio
@@ -86,27 +83,32 @@ jobs:
     - name: Configurar gcloud CLI
       uses: google-github-actions/setup-gcloud@v2
 
-    # Configura Docker para que pueda subir imágenes a Google Artifact Registry
     - name: Configurar autenticación de Docker en GCP
       run: |
         gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-    # Construye la imagen usando el Dockerfile (el cual no contiene el modelo físicamente)
+    - name: Obtener el modelo del Bucket para la construcción de la imagen
+      run: |
+        gcloud storage cp gs://${{ secrets.GCP_BUCKET_NAME }}/models/yolo26n.onnx ./yolo26n.onnx
+
     - name: Construir Imagen Docker
       run: |
         docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/repository-mlops/${{ env.IMAGE_NAME }}:${{ github.sha }} .
 
-    # Sube el contenedor listo al registro de Google Cloud
     - name: Subir Imagen a Artifact Registry
       run: |
         docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/repository-mlops/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-    # Despliega el contenedor en Cloud Run e inyecta el nombre del bucket como variable
-    - name: Desplegar en Google Cloud Run
+    # REQUERIMIENTO 2: Despliega y actualiza de forma automática el endpoint final
+    # Agregamos tolerancia de recursos para IA y la variable ENV_STAGE para que tu código sepa en qué rama está (dev o prod)
+    - name: Actualizar Endpoint en Google Cloud Run
       run: |
         gcloud run deploy traffic-monitor-service \
           --image ${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/repository-mlops/${{ env.IMAGE_NAME }}:${{ github.sha }} \
           --platform managed \
           --region ${{ env.REGION }} \
           --allow-unauthenticated \
-          --set-env-vars GCP_BUCKET_NAME=${{ secrets.GCP_BUCKET_NAME }}
+          --memory 2Gi \
+          --cpu 2 \
+          --timeout 300 \
+          --set-env-vars MODEL_PATH="/app/yolo26n.onnx",ENV_STAGE="${{ github.ref_name }}"

@@ -1,25 +1,31 @@
-FROM python:3.12-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    MODEL_PATH=models/yolo26n.onnx
+# 1. Evitar bloqueos interactivos y configurar salida limpia
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
 
+# 2. Instalar dependencias nativas del sistema operativo para OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 libgl1 curl \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt requirements.txt
+# 3. Copiar e instalar las dependencias de Python
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app app
-COPY scripts scripts
+# 4. SOLUCIÓN COMPLETA: Copiamos TODO el proyecto (incluyendo static, templates, app y scripts)
+COPY . .
 
-ARG MODEL_URL
-ENV MODEL_URL=${MODEL_URL}
-RUN PYTHONPATH=/app python scripts/download_model.py
+# 5. Colocamos el modelo .onnx descargado del bucket en la raíz del contenedor
+COPY yolo26n.onnx /app/yolo26n.onnx
 
+# 6. Variables de entorno indispensables para Cloud Run
+ENV PORT=8080
 EXPOSE 8080
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# 7. EJECUCIÓN: Agregamos la raíz al PYTHONPATH para que encuentre el módulo 'app' 
+# y todas las carpetas adyacentes de inmediato.
+CMD ["sh", "-c", "PYTHONPATH=. uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
