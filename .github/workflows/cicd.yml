@@ -101,9 +101,10 @@ jobs:
 
     # REQUERIMIENTO 2: Despliega y actualiza de forma automática el endpoint final
     # Agregamos tolerancia de recursos para IA y la variable ENV_STAGE para que tu código sepa en qué rama está (dev o prod)
+    # REQUERIMIENTO COMPLETO: Crea un contenedor independiente para dev y prod, e inyecta la telemetría
     - name: Actualizar Endpoint en Google Cloud Run
       run: |
-        gcloud run deploy traffic-monitor-service \
+        gcloud run deploy traffic-monitor-service-${{ github.ref_name }} \
           --image ${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/repository-mlops/${{ env.IMAGE_NAME }}:${{ github.sha }} \
           --platform managed \
           --region ${{ env.REGION }} \
@@ -111,4 +112,4 @@ jobs:
           --memory 2Gi \
           --cpu 2 \
           --timeout 300 \
-          --set-env-vars MODEL_PATH="/app/yolo26n.onnx",ENV_STAGE="${{ github.ref_name }}"
+          --set-env-vars MODEL_PATH="/app/yolo26n.onnx",ENV_STAGE="${{ github.ref_name }}",GCP_BUCKET_NAME="${{ secrets.GCP_BUCKET_NAME }}"
