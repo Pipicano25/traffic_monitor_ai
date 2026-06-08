@@ -88,7 +88,7 @@ def build_prediction_response(result: dict) -> dict:
     return {
         "request_id": str(uuid4()),
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "environment": settings.environment,
+        "environment": ENV_STAGE.upper(),
         "model_path": settings.model_path,
         "vehicle_class_ids": settings.vehicle_class_ids,
         "vehicle_class_labels": result.get("vehicle_class_labels", []),
@@ -105,7 +105,7 @@ def register_prediction(response: dict) -> None:
     payload = {
         "request_id": response["request_id"],
         "timestamp_utc": response["timestamp_utc"],
-        "environment": response["environment"],
+        "environment": ENV_STAGE,
         "count": response["count"],
         "class_counts": response["class_counts"],
         "confidence_threshold": response["confidence_threshold"],
@@ -152,7 +152,7 @@ def home(request: Request) -> HTMLResponse:
         "home.html",
         {
             "request": request,
-            "environment": f"{settings.environment} ({ENV_STAGE.upper()})",
+            "environment": f"{ENV_STAGE} ({ENV_STAGE.upper()})",
             "vehicle_class_ids": settings.vehicle_class_ids,
             "conf_threshold": settings.conf_threshold,
             "model_ready": bool(status.get("ready")),
@@ -316,7 +316,7 @@ def health() -> dict:
 
     return {
         "status": "ok",
-        "environment": settings.environment,
+        "environment": ENV_STAGE.upper(),
         "stage_mlops": ENV_STAGE.upper(),
         "model_path": settings.model_path,
         "interface": "enabled",
