@@ -76,8 +76,8 @@ def test_count_metric_has_no_significant_change(counter, test_image_bytes):
     Compara el conteo obtenido contra un valor esperado configurado por el entorno,
     verificando que la diferencia no exceda el error absoluto tolerado.
     """
-    expected_count = int(os.getenv("EXPECTED_COUNT", "20"))
-    max_abs_error = int(os.getenv("MAX_ABS_ERROR", "5"))
+    expected_count = int(os.getenv("EXPECTED_COUNT", "21"))
+    max_abs_error = int(os.getenv("MAX_ABS_ERROR", "0"))
 
     result = counter.predict(test_image_bytes)
 
