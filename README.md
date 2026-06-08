@@ -595,6 +595,7 @@ git merge dev
 git push origin prod
 ```
 
+<<<<<<< HEAD
 Esto ejecuta nuevamente pruebas, construye la imagen y actualiza el endpoint de producción.
 
 ---
@@ -642,3 +643,71 @@ Este proyecto implementa una solución completa de despliegue automático para u
 La arquitectura integra GitHub Actions, pruebas unitarias, descarga externa del modelo y datos de prueba, Docker, Artifact Registry, Google Cloud Run y registro de predicciones por ambiente.
 
 Con esta solución, cada cambio enviado a `dev` o `prod` puede ser validado, empaquetado y desplegado automáticamente, permitiendo que los usuarios finales consuman el modelo actualizado desde endpoints independientes para desarrollo y producción.
+=======
+
+# Traffic Monitor AI - Sistema Inteligente de Monitoreo Vehicular con ONNX y GCP
+
+Este repositorio contiene un sistema de nivel de producción bajo el paradigma **MLOps** para el conteo y clasificación automática de vehículos en tiempo real. La solución implementa una arquitectura serverless desacoplada, utilizando **FastAPI** para la API web, **ONNX Runtime** para una inferencia de alto rendimiento y un pipeline robusto de **CI/CD con GitHub Actions** que automatiza las pruebas, la containerización y el despliegue en **Google Cloud Platform (GCP)**.
+
+---
+
+## 🏗️ Arquitectura General de la Solución
+
+El sistema está diseñado siguiendo principios de entrega continua y segregación de entornos. A continuación, se detalla el ciclo completo desde el desarrollo hasta la ejecución:
+
+```mermaid
+graph TD
+    %% Estilos Generales Minimalistas
+    classDef gitHub fill:#f6f8fa,stroke:#d0d7de,stroke-width:2px,color:#24292f,font-family:sans-serif;
+    classDef gcp fill:#f8f9fa,stroke:#1a73e8,stroke-width:2px,color:#202124,font-family:sans-serif;
+    classDef user fill:#fff,stroke:#34a853,stroke-width:2px,color:#202124,font-family:sans-serif;
+    classDef box fill:#ffffff,stroke:#e0e0e0,stroke-width:1px,font-family:sans-serif;
+
+    %% Fase Desarrollo
+    Dev[👤 Desarrollador] -->|🛠️ git push| Repo
+
+    subgraph GitHub [🐙 GITHUB PLATFORM]
+        Repo[GitHub Repository<br>• /app FastAPI<br>• /templates & static<br>• Dockerfile]
+        Actions[GitHub Actions CI/CD<br>• Etapa 1: Test pytest<br>• Etapa 2: Build & Deploy]
+        Repo --> Actions
+    end
+    class GitHub,Repo,Actions gitHub;
+
+    %% Conector
+    Actions -->|🔐 Workload Identity| Storage
+
+    subgraph GCP [☁️ GOOGLE CLOUD PLATFORM - traffic-monitor-mlops]
+        subgraph Storage [🗄️ Cloud Storage: traffic-mlops-storage]
+            TestData[/test-data/img1.jpeg & img2.jpeg/]
+            Model[/models/yolo26n.onnx/]
+            Logs[/logs/predicciones_dev & prod.txt/]
+        end
+        
+        Registry[📦 Artifact Registry<br>repository-mlops<br>traffic-monitor-app:latest]
+        
+        subgraph Run [🚀 Cloud Run: Servicios Serverless]
+            DevEnv(🟢 traffic-monitor-service-dev)
+            ProdEnv(🟢 traffic-monitor-service-prod)
+        end
+    end
+    class GCP,Storage,Registry,Run,DevEnv,ProdEnv gcp;
+    class Model,TestData,Logs box;
+
+    %% Relaciones de Flujo A (Construcción y Validación)
+    TestData -.->|A1. Descarga imágenes de prueba| Actions
+    Model -.->|A2. Descarga modelo ONNX| Actions
+    Actions -->|A3. Empuja Docker Image| Registry
+    Registry -->|A4. Despliega contenedor| Run
+
+    %% Relaciones de Flujo B (Tiempo de ejecución / Runtime)
+    Usuario[👤 USUARIO FINAL] -->|B1. Sube foto a /predict| Run
+    Run -.->|B2. Registra logs asíncronos| Logs
+    Run -->|B3. Retorna conteo| Usuario
+
+    class Usuario user;
+
+
+
+
+
+>>>>>>> 9e9ff08422a180e0e3a07781d0964d7ef3934f07

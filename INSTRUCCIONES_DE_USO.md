@@ -92,9 +92,9 @@ La aplicación utiliza variables de entorno para definir el modelo, el ambiente,
 | `CONF_THRESHOLD` | Umbral mínimo de confianza para aceptar detecciones. | `0.25` |
 | `IOU_THRESHOLD` | Umbral IoU usado en postprocesamiento/NMS cuando aplica. | `0.45` |
 | `VEHICLE_CLASS_IDS` | Clases COCO que serán contadas como vehículos. | `2` o `2,3,5,7` |
-| `TEST_IMAGE_PATH`| Imagen de prueba|"tests/data/img1.jpeg"|
-| `EXPECTED_COUNT`| Numero de carros esperado|"20"|
-| `MAX_ABS_ERROR`| Margen de error |"2"|
+| `TEST_IMAGE_PATH`| Imagen de prueba|'tests/data/img1.jpeg'|
+| `EXPECTED_COUNT`| Numero de carros esperado|'20'|
+| `MAX_ABS_ERROR`| Margen de error |'2'|
 
 Ejemplo para Linux / macOS:
 
