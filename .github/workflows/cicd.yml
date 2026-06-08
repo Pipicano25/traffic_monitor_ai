@@ -58,8 +58,8 @@ jobs:
       env:
         TEST_IMAGE_PATH: "tests/data/img1.jpeg"
         MODEL_PATH: "./yolo26n.onnx"
-        EXPECTED_COUNT: "20"
-        MAX_ABS_ERROR: "5"
+        EXPECTED_COUNT: "21"
+        MAX_ABS_ERROR: "0"
       run: |
         pytest -v
 

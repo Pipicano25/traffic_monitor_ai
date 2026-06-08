@@ -39,7 +39,7 @@ def counter() -> VehicleCounter:
         iou_threshold=settings.iou_threshold,
     )
 
-
+######Requerimiento (Prueba 1): "Probar que el modelo responde con datos de entrada definidos"
 def test_model_responds_with_defined_input(counter, test_image_bytes):
     """
     Prueba que el modelo responda correctamente y devuelva un diccionario
@@ -69,7 +69,7 @@ def test_model_returns_expected_output_structure(counter, test_image_bytes):
     assert "class_counts" in result
     assert isinstance(result["class_counts"], dict)
 
-
+#############Requerimiento (Prueba 2): "Probar que no existe un cambio significativo en alguna métrica definida... usando algún valor límite"
 def test_count_metric_has_no_significant_change(counter, test_image_bytes):
     """
     Prueba de umbral de métrica límite.
@@ -77,7 +77,7 @@ def test_count_metric_has_no_significant_change(counter, test_image_bytes):
     verificando que la diferencia no exceda el error absoluto tolerado.
     """
     expected_count = int(os.getenv("EXPECTED_COUNT", "21"))
-    max_abs_error = int(os.getenv("MAX_ABS_ERROR", "0"))
+    max_abs_error = int(os.getenv("MAX_ABS_ERROR", "1"))
 
     result = counter.predict(test_image_bytes)
 
