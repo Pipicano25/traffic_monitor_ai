@@ -8,7 +8,7 @@
 ![Google Cloud Run](https://img.shields.io/badge/Deploy-Google%20Cloud%20Run-lightgrey)
 
 ## 1. Descripción general
-
+##
 **Traffic Monitor AI** es una aplicación de inteligencia artificial para el monitoreo vehicular en imágenes.  
 El sistema utiliza un modelo **YOLO26 en formato ONNX** para detectar y contar vehículos, y expone el modelo mediante una aplicación web y una API desarrollada con **FastAPI**.
 
