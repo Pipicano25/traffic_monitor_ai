@@ -56,7 +56,7 @@ jobs:
 
     - name: Ejecutar Suite de Tests
       env:
-        TEST_IMAGE_PATH: "tests/data/img1.jpeg"
+        TEST_IMAGE_PATH: "tests/data/img2.jpeg"
         MODEL_PATH: "./yolo26n.onnx"
         EXPECTED_COUNT: "20"
         MAX_ABS_ERROR: "2"
